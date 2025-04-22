@@ -1,62 +1,151 @@
 import {config} from "@lodestar/config/default";
+import {ZERO_HASH} from "@lodestar/params";
+import {computeStartSlotAtEpoch} from "@lodestar/state-transition";
 import {describe, expect, it} from "vitest";
 import {Batch} from "../../../../../src/sync/range/batch.js";
+import {ChainTarget} from "../../../../../src/sync/range/chain.js";
 import {ChainPeersBalancer} from "../../../../../src/sync/range/utils/peerBalancer.js";
+import {CustodyConfig} from "../../../../../src/util/dataColumns.js";
 import {PeerIdStr} from "../../../../../src/util/peerId.js";
-import {getRandPeerIdStr} from "../../../../utils/peer.js";
 
 describe("sync / range / peerBalancer", () => {
-  it("bestPeerToRetryBatch", async () => {
-    // Run N times to make sure results are consistent with different shufflings
-    for (let i = 0; i < 5; i++) {
-      const peer1 = await getRandPeerIdStr();
-      const peer2 = await getRandPeerIdStr();
-      const peer3 = await getRandPeerIdStr();
-      const batch0 = new Batch(0, config);
-      const batch1 = new Batch(1, config);
+  const custodyConfig = {sampledColumns: [0, 1, 2, 3]} as CustodyConfig;
 
-      const custodyColumn = new Map<PeerIdStr, {custodyColumns: number[]}>();
+  describe("bestPeerToRetryBatch", async () => {
+    const peer1 = "peer-1";
+    const peer2 = "peer-2";
+    const peer3 = "peer-3";
+    const peers = [peer1, peer2, peer3];
 
-      // Batch zero has a failedDownloadAttempt with peer0
-      batch0.startDownloading(peer1);
-      batch0.downloadingError();
+    const testCases: {custodyColumns: number[][]; targetEpochs: number[]; expected: string}[] = [
+      {
+        // peer3 is free and has full custody columns and has the greater target epoch
+        custodyColumns: [[], [0, 1, 2, 3], [0, 1, 2, 3]],
+        targetEpochs: [1, 2, 3],
+        expected: peer3,
+      },
+      {
+        // peer3 is free and has partial custody columns (0) and has the greater target epoch
+        custodyColumns: [[], [0, 1, 2, 3], [0]],
+        targetEpochs: [1, 2, 3],
+        expected: peer3,
+      },
+      {
+        // peer3 is free and has partial custody columns (3) and has the greater target epoch
+        custodyColumns: [[], [0, 1, 2, 3], [3]],
+        targetEpochs: [1, 2, 3],
+        expected: peer3,
+      },
+      {
+        // peer3 is free and has full custody columns, but don't have greater target epoch
+        custodyColumns: [[], [0, 1, 2, 3], [0, 1, 2, 3]],
+        targetEpochs: [1, 2, 0],
+        expected: peer2,
+      },
+      {
+        // peer3 is free but don't have any custody columns, have greater target epoch
+        custodyColumns: [[], [0, 1, 2, 3], [4, 5, 6, 7]],
+        targetEpochs: [1, 2, 3],
+        expected: peer2,
+      },
+    ];
+    for (const [i, {custodyColumns, targetEpochs, expected}] of testCases.entries()) {
+      it(`test case ${i}`, async () => {
+        const columnsByPeer = new Map<PeerIdStr, {custodyColumns: number[]}>();
+        for (const [i, custody] of custodyColumns.entries()) {
+          columnsByPeer.set(peers[i], {custodyColumns: custody});
+        }
 
-      // peer2 is busy downloading batch1
-      batch1.startDownloading(peer2);
+        const targetByPeer = new Map<PeerIdStr, ChainTarget>();
+        for (const [i, targetEpoch] of targetEpochs.entries()) {
+          targetByPeer.set(peers[i], {slot: computeStartSlotAtEpoch(targetEpoch), root: ZERO_HASH});
+        }
 
-      const peerBalancer = new ChainPeersBalancer([peer1, peer2, peer3], custodyColumn, [batch0, batch1]);
+        const batch0 = new Batch(1, config);
+        const batch1 = new Batch(2, config);
 
-      expect(peerBalancer.bestPeerToRetryBatch(batch0)).toBe(peer3);
+        // Batch zero has a failedDownloadAttempt with peer0
+        batch0.startDownloading(peer1);
+        batch0.downloadingError();
 
-      batch0.startDownloading(peer3);
-      batch0.downloadingError();
-      expect(peerBalancer.bestPeerToRetryBatch(batch0)).toBe(peer2);
+        // peer2 is busy downloading batch1
+        batch1.startDownloading(peer2);
+
+        const peerBalancer = new ChainPeersBalancer(
+          peers,
+          targetByPeer,
+          columnsByPeer,
+          [batch0, batch1],
+          custodyConfig
+        );
+        expect(peerBalancer.bestPeerToRetryBatch(batch0)).toBe(expected);
+      });
     }
   });
 
-  it("idlePeers", async () => {
-    // Run N times to make sure results are consistent with different shufflings
-    for (let i = 0; i < 5; i++) {
-      const peer1 = await getRandPeerIdStr();
-      const peer2 = await getRandPeerIdStr();
-      const peer3 = await getRandPeerIdStr();
-      const peer4 = await getRandPeerIdStr();
-      const batch0 = new Batch(0, config);
-      const batch1 = new Batch(1, config);
+  describe("idlePeerForBatch", async () => {
+    const peer1 = "peer-1";
+    const peer2 = "peer-2";
+    const peer3 = "peer-3";
+    const peer4 = "peer-4";
+    const peers = [peer1, peer2, peer3, peer4];
 
-      const custodyColumn = new Map<PeerIdStr, {custodyColumns: number[]}>();
+    const testCases: {custodyColumns: number[][]; targetEpochs: number[]; expected: string | undefined}[] = [
+      {
+        // peer3 and peer4 are free and have greater target epoch, pick peer3 because it has more custody columns
+        custodyColumns: [[], [], [0, 1, 2, 3], [0]],
+        targetEpochs: [1, 2, 4, 4],
+        expected: peer3,
+      },
+      {
+        // peer3 and peer4 are free, peer3 does not have greater epoch, peer4 has full custody columns, pick peer4
+        custodyColumns: [[], [], [0, 1, 2, 3], [0, 1, 2, 3]],
+        targetEpochs: [1, 2, 2, 4],
+        expected: peer4,
+      },
+      {
+        // peer3 and peer4 are free, peer3 does not have greater epoch, peer4 has partial custody columns, pick peer4
+        custodyColumns: [[], [], [0, 1, 2, 3], [3]],
+        targetEpochs: [1, 2, 2, 4],
+        expected: peer4,
+      },
+      {
+        // peer3 and peer4 are free, peer3 does not have greater epoch, peer4 does not have custody columns we need, pick nothing
+        custodyColumns: [[], [], [0, 1, 2, 3], []],
+        targetEpochs: [1, 2, 2, 4],
+        expected: undefined,
+      },
+    ];
 
-      // peer1 and peer2 are busy downloading
-      batch0.startDownloading(peer1);
-      batch1.startDownloading(peer2);
+    for (const [i, {custodyColumns, targetEpochs, expected}] of testCases.entries()) {
+      it(`test case ${i}`, async () => {
+        const columnsByPeer = new Map<PeerIdStr, {custodyColumns: number[]}>();
+        for (const [i, custody] of custodyColumns.entries()) {
+          columnsByPeer.set(peers[i], {custodyColumns: custody});
+        }
 
-      const peerBalancer = new ChainPeersBalancer([peer1, peer2, peer3, peer4], custodyColumn, [batch0, batch1]);
+        const targetByPeer = new Map<PeerIdStr, ChainTarget>();
+        for (const [i, targetEpoch] of targetEpochs.entries()) {
+          targetByPeer.set(peers[i], {slot: computeStartSlotAtEpoch(targetEpoch), root: ZERO_HASH});
+        }
 
-      const idlePeers = peerBalancer.idlePeers();
+        const batch0 = new Batch(1, config);
+        const batch1 = new Batch(2, config);
+        // peer1 and peer2 are busy downloading
+        batch0.startDownloading(peer1);
+        batch1.startDownloading(peer2);
 
-      const idlePeersIds = idlePeers.map((p) => p.toString()).sort();
-      const expectedIds = [peer3, peer4].map((p) => p.toString()).sort();
-      expect(idlePeersIds).toEqual(expectedIds);
+        const newBatch = new Batch(3, config);
+        const peerBalancer = new ChainPeersBalancer(
+          peers,
+          targetByPeer,
+          columnsByPeer,
+          [batch0, batch1],
+          custodyConfig
+        );
+        const idlePeer = peerBalancer.idlePeerForBatch(newBatch);
+        expect(idlePeer).toBe(expected);
+      });
     }
   });
 });

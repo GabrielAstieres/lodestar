@@ -1,5 +1,6 @@
+import {fromHexString} from "@chainsafe/ssz";
 import {config} from "@lodestar/config/default";
-import {SLOTS_PER_EPOCH} from "@lodestar/params";
+import {NUMBER_OF_COLUMNS, SLOTS_PER_EPOCH} from "@lodestar/params";
 import {computeStartSlotAtEpoch} from "@lodestar/state-transition";
 import {Epoch, Slot, phase0, ssz} from "@lodestar/types";
 import {Logger} from "@lodestar/utils";
@@ -8,6 +9,7 @@ import {BlockInput, BlockSource, getBlockInput} from "../../../../src/chain/bloc
 import {ZERO_HASH} from "../../../../src/constants/index.js";
 import {ChainTarget, SyncChain, SyncChainFns} from "../../../../src/sync/range/chain.js";
 import {RangeSyncType} from "../../../../src/sync/utils/remoteSyncType.js";
+import {CustodyConfig} from "../../../../src/util/dataColumns.js";
 import {linspace} from "../../../../src/util/numpy.js";
 import {testLogger} from "../../../utils/logger.js";
 import {validPeerIdStr} from "../../../utils/peer.js";
@@ -56,6 +58,8 @@ describe("sync / range / chain", () => {
   const REJECT_BLOCK = Buffer.alloc(96, 1);
   const zeroBlockBody = ssz.phase0.BeaconBlockBody.defaultValue();
   const interval: NodeJS.Timeout | null = null;
+  const nodeId = fromHexString("cdbee32dc3c50e9711d22be5565c7e44ff6108af663b2dc5abd2df573d2fa83f");
+  const custodyConfig = new CustodyConfig(nodeId, config);
 
   const reportPeer: SyncChainFns["reportPeer"] = () => {};
 
@@ -110,11 +114,17 @@ describe("sync / range / chain", () => {
           target,
           syncType,
           logSyncChainFns(logger, {processChainSegment, downloadBeaconBlocksByRange, reportPeer, onEnd}),
-          {config, logger}
+          {config, logger, custodyConfig}
         );
 
         const peers = [peer];
-        for (const peer of peers) initialSync.addPeer(peer, target, [], "CLIENT_AGENT");
+        for (const peer of peers)
+          initialSync.addPeer(
+            peer,
+            target,
+            Array.from({length: NUMBER_OF_COLUMNS}, (_, i) => i),
+            "CLIENT_AGENT"
+          );
 
         initialSync.startSyncing(startEpoch);
       });
@@ -158,12 +168,18 @@ describe("sync / range / chain", () => {
         target,
         syncType,
         logSyncChainFns(logger, {processChainSegment, downloadBeaconBlocksByRange, reportPeer, onEnd}),
-        {config, logger}
+        {config, logger, custodyConfig}
       );
 
       // Add peers after some time
       setTimeout(() => {
-        for (const peer of peers) initialSync.addPeer(peer, target, [], "CLIENT_AGENT");
+        for (const peer of peers)
+          initialSync.addPeer(
+            peer,
+            target,
+            Array.from({length: NUMBER_OF_COLUMNS}, (_, i) => i),
+            "CLIENT_AGENT"
+          );
       }, 20);
 
       initialSync.startSyncing(startEpoch);
