@@ -11,7 +11,10 @@ export enum BlockInputErrorCode {
   // Bad Arguments
   UNDEFINED_PROP = "BLOCK_INPUT_ERROR_UNDEFINED_PROP",
   INVALID_CONSTRUCTION = "BLOCK_INPUT_ERROR_INVALID_CONSTRUCTION",
-  MUST_UPGRADE_BLOCK_INPUT_TYPE = "BLOCK_INPUT_ERROR_MUST_UPGRADE_BLOCK_INPUT_TYPE",
+
+  // Invalid BlockInput type
+  UNKNOWN_BLOCK_INPUT_TYPE = "BLOCK_INPUT_ERROR_UNKNOWN_BLOCK_INPUT_TYPE",
+  INVALID_BLOCK_INPUT_TYPE = "BLOCK_INPUT_ERROR_INVALID_BLOCK_INPUT_TYPE",
 
   // Attempt to get all data but some is missing
   INCOMPLETE_DATA = "BLOCK_INPUT_ERROR_INCOMPLETE_DATA",
@@ -41,21 +44,15 @@ export type BlockInputErrorType =
         | BlockInputErrorCode.MISSING_PARENT_ROOT_HEX
         | BlockInputErrorCode.MISSING_BLOCK
         | BlockInputErrorCode.MISSING_TIME_COMPLETE
-        | BlockInputErrorCode.MISSING_VERSIONED_HASHES;
+        | BlockInputErrorCode.MISSING_VERSIONED_HASHES
+        | BlockInputErrorCode.INVALID_CONSTRUCTION
+        | BlockInputErrorCode.UNKNOWN_BLOCK_INPUT_TYPE;
       blockRoot: string;
     }
   | {
       code: BlockInputErrorCode.UNDEFINED_PROP;
       blockRoot: string;
       propName: string;
-    }
-  | {
-      code: BlockInputErrorCode.INVALID_CONSTRUCTION;
-      blockRoot: string;
-    }
-  | {
-      code: BlockInputErrorCode.MUST_UPGRADE_BLOCK_INPUT_TYPE;
-      blockRoot: string;
     }
   | {
       code: BlockInputErrorCode.MISMATCHED_ROOT_HEX;

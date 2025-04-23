@@ -29,7 +29,7 @@ export enum BlockInputType {
   // Columns = "columns",
 }
 
-export type PossibleDataTypes = null | deneb.BlobSidecars; // | fulu.DataColumnSidecars
+export type PossibleDataTypes = null | deneb.BlobSidecar; // | fulu.DataColumnSidecars
 
 /**
  * Represents were input originated. Blocks and Data can come from different
@@ -73,6 +73,8 @@ export type SourceMeta = {
 export type BlockWithSource<BlockType extends SignedBeaconBlock> = SourceMeta & {
   block: BlockType;
 };
+
+export type DataWithSource<DataType extends PossibleDataTypes> = SourceMeta & {sidecar: DataType};
 
 export type BlobWithSource = SourceMeta & {blobSidecar: deneb.BlobSidecar};
 
