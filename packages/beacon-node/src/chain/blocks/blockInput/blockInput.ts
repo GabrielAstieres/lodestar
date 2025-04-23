@@ -57,23 +57,35 @@ export type BlockInputLogMeta<Type extends BlockInputType> =
   // :
   Type extends BlockInputType.Blobs ? LogMetaBlobs : LogMetaBasic;
 
-export function isBlockInputUnknown(bi: BlockInput): bi is BlockInput<BlockInputType.Unknown> {
+export function isBlockInputUnknown(bi: BlockInputBase): bi is BlockInput<BlockInputType.Unknown> {
   return bi.type === BlockInputType.Unknown;
 }
 
-export function isBlockInputPreData(blockInput: BlockInput): blockInput is BlockInput<BlockInputType.PreData> {
+export function isBlockInputPreData(blockInput: BlockInputBase): blockInput is BlockInput<BlockInputType.PreData> {
   return blockInput.type === BlockInputType.PreData;
 }
 
-export function isBlockInputBlobs(bi: BlockInput): bi is BlockInput<BlockInputType.Blobs> {
+export function isBlockInputBlobs(bi: BlockInputBase): bi is BlockInput<BlockInputType.Blobs> {
   return bi.type === BlockInputType.Blobs;
+}
+
+interface BlockInputBase {
+  type: BlockInputType;
+  get prettyRootHex(): string;
+  rootHex: string;
+  blockRoot: Uint8Array;
+  getSlot(): Slot;
+  getSlot(shouldError: boolean): Slot | undefined;
+  getForkName(): ForkName;
+  getParentRootHex(): string;
 }
 
 export class BlockInput<
   Type extends BlockInputType = BlockInputType,
   BlockType extends SignedBeaconBlock = BlockInputBlockType<Type>,
   DataType extends PossibleDataTypes = BlockInputDataType<Type>,
-> {
+> implements BlockInputBase
+{
   type = BlockInputType.Unknown;
   rootHex: string;
   blockRoot: Uint8Array;
