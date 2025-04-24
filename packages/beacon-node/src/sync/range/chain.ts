@@ -16,7 +16,7 @@ import {Batch, BatchError, BatchErrorCode, BatchMetadata, BatchStatus} from "./b
 import {
   ChainPeersBalancer,
   batchStartEpochIsAfterSlot,
-  computeMostCommonTarget,
+  computeHighestTarget,
   getBatchSlotRange,
   getNextBatchToProcess,
   isSyncChainDone,
@@ -270,7 +270,7 @@ export class SyncChain {
   private computeTarget(): void {
     if (this.peerset.size > 0) {
       const targets = Array.from(this.peerset.values());
-      this.target = computeMostCommonTarget(targets);
+      this.target = computeHighestTarget(targets);
     }
   }
 
