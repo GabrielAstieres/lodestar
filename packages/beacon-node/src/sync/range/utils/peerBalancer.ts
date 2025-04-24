@@ -50,6 +50,11 @@ export class ChainPeersBalancer {
     const failedPeers = new Set(batch.getFailedPeers());
     const sortedBestPeers = sortBy(
       this.peers.filter((peerId) => {
+        if (!batch.isFulu()) {
+          return true;
+        }
+
+        // fulu specific logic
         const pendingDataColumns = partialDownload
           ? partialDownload.pendingDataColumns
           : this.custodyConfig.sampledColumns;
@@ -90,6 +95,12 @@ export class ChainPeersBalancer {
         continue;
       }
 
+      if (!batch.isFulu()) {
+        eligiblePeers.push({peerId, columns: 0});
+        continue;
+      }
+
+      // fulu specific logic
       const peerColumns = this.columnsByPeer.get(peerId)?.custodyColumns ?? [];
       const columns = peerColumns.reduce((acc, elem) => {
         if (this.custodyConfig.sampledColumns.includes(elem)) {
@@ -103,7 +114,7 @@ export class ChainPeersBalancer {
       }
     }
 
-    // pick idle peer that has the most columns we need
+    // pick idle peer that has the most columns we need, for pre-fulu they are always 0
     const mostColumnsPeer = eligiblePeers.sort((a, b) => b.columns - a.columns)[0];
     return mostColumnsPeer?.peerId;
   }
