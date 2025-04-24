@@ -86,7 +86,7 @@ export class BlockInput<
   DataType extends PossibleDataTypes = BlockInputDataType<Type>,
 > implements BlockInputBase
 {
-  type: T;
+  type: Type;
   rootHex: string;
   blockRoot: Uint8Array;
 
@@ -124,7 +124,7 @@ export class BlockInput<
     return prettyBytes(this.rootHex);
   }
 
-  constructor(props: BlockInputBaseProps & {type: BlockInputType}) {
+  constructor(props: BlockInputBaseProps & {type: Type}) {
     this.type = props.type;
     this.checkForUndefinedProps({
       rootHex: props.rootHex,
@@ -281,7 +281,7 @@ export class BlockInput<
     this.blockPromise.resolve(block);
 
     if (this.isBlobsType()) {
-      const {block} = props as AddBlockProps<typeof this.type>;
+      const {block} = props as AddBlockProps<BlockInputBlockType<typeof this.type>>;
 
       this.versionHashes =
         this.blockWithSource?.block.message.body.blobKzgCommitments.map(kzgCommitmentToVersionedHash);
