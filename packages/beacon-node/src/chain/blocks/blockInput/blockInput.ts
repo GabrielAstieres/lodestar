@@ -27,8 +27,11 @@ import {
   BlobWithSource,
   BlockInputBaseProps,
   BlockInputBlobsProps,
+  BlockInputBlockType,
   // BlockInputColumnsProps,
   BlockInputDataStatus,
+  BlockInputDataType,
+  BlockInputLogMeta,
   BlockInputPreDataProps,
   BlockInputType,
   BlockWithSource,
@@ -43,20 +46,6 @@ import {
   PromiseParts,
 } from "./types.js";
 
-export type BlockInputBlockType<Type extends BlockInputType> = Type extends BlockInputType.Blobs
-  ? SignedBeaconBlock<ForkPostDeneb>
-  : SignedBeaconBlock<ForkPreDeneb>;
-
-export type BlockInputDataType<Type extends BlockInputType> = Type extends BlockInputType.Blobs
-  ? deneb.BlobSidecar
-  : null;
-
-export type BlockInputLogMeta<Type extends BlockInputType> =
-  // Type extends BlockInputType.Columns
-  // ? LogMetaColumns
-  // :
-  Type extends BlockInputType.Blobs ? LogMetaBlobs : LogMetaBasic;
-
 export function isBlockInputUnknown(bi: BlockInputBase): bi is BlockInput<BlockInputType.Unknown> {
   return bi.type === BlockInputType.Unknown;
 }
@@ -67,6 +56,10 @@ export function isBlockInputPreData(blockInput: BlockInputBase): blockInput is B
 
 export function isBlockInputBlobs(bi: BlockInputBase): bi is BlockInput<BlockInputType.Blobs> {
   return bi.type === BlockInputType.Blobs;
+}
+
+export function isBlockInputData(blockInput: BlockInputBase): blockInput is BlockInput<BlockInputType.Blobs> {
+  return blockInput.type === BlockInputType.Blobs;
 }
 
 interface BlockInputBase {
@@ -106,7 +99,7 @@ export class BlockInput<
   private timeCompleteSec?: number;
 
   private blockPromise = this.createPromise<BlockType>();
-  private dataPromise = this.createPromise<DataType>();
+  private dataPromise = this.createPromise<DataType[]>();
 
   private isBlobsType(): this is BlockInput<BlockInputType.Blobs> & this {
     return this.type === BlockInputType.Blobs;
@@ -197,9 +190,9 @@ export class BlockInput<
     return this.timeCompleteSec;
   }
 
-  // isComplete(): boolean {
-  //   return this.hasBlock() && !this.needsData();
-  // }
+  isComplete(): boolean {
+    return this.hasBlock() && !this.needsData();
+  }
 
   getLogMeta(): BlockInputLogMeta<Type> {
     let meta = {
@@ -314,153 +307,156 @@ export class BlockInput<
    * Data related methods
    *
    */
-  // hasData(): boolean {
-  //   return this.dataCache.size > 0;
-  // }
+  hasData(): boolean {
+    return this.dataCache.size > 0;
+  }
 
-  // needsData(): boolean {
-  //   if (isBlockInputPreData(this)) {
-  //     return false;
-  //   }
-  //   if (isBlockInputBlobs(this)) {
-  //     return (
-  //       this.dataAvailability === DataAvailabilityStatus.Available &&
-  //       (!this.blockWithSource || this.blobsCache.size < this.numberOfBlobs())
-  //     );
-  //   }
-  //   // if (isBlockInputColumns(this)) {
-  //   //   return this.dataAvailability === DataAvailabilityStatus.Available && !!this.getMissingColumnMeta().length;
-  //   // }
-  //   throw new BlockInputError({code: BlockInputErrorCode.UNKNOWN_BLOCK_INPUT_TYPE, blockRoot: this.prettyRootHex});
-  // }
+  needsData(): boolean {
+    if (isBlockInputPreData(this)) {
+      return false;
+    }
+    if (isBlockInputBlobs(this)) {
+      return (
+        this.dataAvailability === DataAvailabilityStatus.Available &&
+        (!this.blockWithSource || this.dataCache.size < this.numberOfBlobs())
+      );
+    }
+    // if (isBlockInputColumns(this)) {
+    //   return this.dataAvailability === DataAvailabilityStatus.Available && !!this.getMissingColumnMeta().length;
+    // }
+    throw new BlockInputError({code: BlockInputErrorCode.UNKNOWN_BLOCK_INPUT_TYPE, blockRoot: this.prettyRootHex});
+  }
 
-  // getVersionHashes(): VersionedHashes;
-  // getVersionHashes(shouldError: false): undefined | VersionedHashes;
-  // getVersionHashes(shouldError = true): undefined | VersionedHashes {
-  //   if (isBlockInputUnknown(this) || isBlockInputPreData(this)) {
-  //     throw new BlockInputError(
-  //       {code: BlockInputErrorCode.INVALID_BLOCK_INPUT_TYPE},
-  //       "Cannot getVersionHashes for Unknown or PreData BlockInputType"
-  //     );
-  //   }
-  //   if (!this.versionHashes || this.versionHashes.length !== this.numberOfBlobs()) {
-  //     if (!shouldError) {
-  //       return;
-  //     }
-  //     throw new BlockInputError({
-  //       code: BlockInputErrorCode.MISSING_VERSIONED_HASHES,
-  //       blockRoot: this.prettyRootHex,
-  //     });
-  //   }
-  //   return this.versionHashes;
-  // }
+  getVersionHashes(): VersionedHashes;
+  getVersionHashes(shouldError: false): undefined | VersionedHashes;
+  getVersionHashes(shouldError = true): undefined | VersionedHashes {
+    if (!isBlockInputData(this)) {
+      throw new BlockInputError(
+        {code: BlockInputErrorCode.INVALID_BLOCK_INPUT_TYPE, type: this.type, blockRoot: this.prettyRootHex},
+        "Cannot getVersionHashes for Unknown or PreData BlockInputType"
+      );
+    }
+    if (!this.versionHashes || this.versionHashes.length !== this.numberOfBlobs()) {
+      if (!shouldError) {
+        return;
+      }
+      throw new BlockInputError({
+        code: BlockInputErrorCode.MISSING_VERSIONED_HASHES,
+        blockRoot: this.prettyRootHex,
+      });
+    }
+    return this.versionHashes;
+  }
 
-  // numberOfBlobs(): number {
-  //   if (isBlockInputUnknown(this) || isBlockInputPreData(this)) {
-  //     throw new BlockInputError(
-  //       {code: BlockInputErrorCode.INVALID_BLOCK_INPUT_TYPE},
-  //       "Cannot get numberOfBlobs for Unknown or PreData BlockInputType"
-  //     );
-  //   }
-  //   if (!this.blockWithSource) {
-  //     throw new BlockInputError({
-  //       code: BlockInputErrorCode.UNKNOWN_NUMBER_OF_BLOBS,
-  //       ...this.getLogMeta(),
-  //     });
-  //   }
-  //   return this.blockWithSource.block.message.body.blobKzgCommitments.length;
-  // }
+  numberOfBlobs(): number {
+    if (!isBlockInputData(this)) {
+      throw new BlockInputError(
+        {code: BlockInputErrorCode.INVALID_BLOCK_INPUT_TYPE, type: this.type, blockRoot: this.prettyRootHex},
+        "Cannot get numberOfBlobs for Unknown or PreData BlockInputType"
+      );
+    }
+    if (!this.blockWithSource) {
+      throw new BlockInputError({
+        code: BlockInputErrorCode.UNKNOWN_NUMBER_OF_BLOBS,
+        ...this.getLogMeta(),
+      });
+    }
+    return this.blockWithSource.block.message.body.blobKzgCommitments.length;
+  }
 
-  // /**
-  //  *
-  //  * Blob specific methods
-  //  *
-  //  */
-  // addBlob({rootHex, blobSidecar, source, seenTimestampSec, peerIdStr}: AddBlobProps): void {
-  //   this.checkForUndefinedProps({rootHex, blobSidecar, source, seenTimestampSec});
-  //   if (rootHex !== this.rootHex) {
-  //     throw new BlockInputError(
-  //       {
-  //         code: BlockInputErrorCode.MISMATCHED_ROOT_HEX,
-  //         blockInputRoot: this.rootHex,
-  //         mismatchedRoot: rootHex,
-  //         source: source,
-  //         peerId: `${peerIdStr}`,
-  //       },
-  //       "Blob BeaconBlockHeader rootHex does not match BlockInput.rootHex"
-  //     );
-  //   }
+  /**
+   *
+   * Blob specific methods
+   *
+   */
+  addBlob({rootHex, blobSidecar, source, seenTimestampSec, peerIdStr}: AddBlobProps): void {
+    if (!isBlockInputBlobs(this)) {
+      throw new Error();
+    }
+    this.checkForUndefinedProps({rootHex, blobSidecar, source, seenTimestampSec});
+    if (rootHex !== this.rootHex) {
+      throw new BlockInputError(
+        {
+          code: BlockInputErrorCode.MISMATCHED_ROOT_HEX,
+          blockInputRoot: this.rootHex,
+          mismatchedRoot: rootHex,
+          source: source,
+          peerId: `${peerIdStr}`,
+        },
+        "Blob BeaconBlockHeader rootHex does not match BlockInput.rootHex"
+      );
+    }
 
-  //   if (this.blockWithSource) {
-  //     const err = this.checkBlockAndBlobArePaired(this.blockWithSource.block, blobSidecar);
-  //     if (err) throw err;
-  //   }
+    if (this.blockWithSource) {
+      const err = this.checkBlockAndBlobArePaired(this.blockWithSource.block, blobSidecar);
+      if (err) throw err;
+    }
 
-  //   // TODO: (@matthewkeil) check for duplicates and add metric here
-  //   // if (this.blobsCache.has(blobSidecar.index)) {
-  //   //   this.metrics.blockInput.duplicateBlob.inc()
-  //   // }
+    // TODO: (@matthewkeil) check for duplicates and add metric here
+    // if (this.blobsCache.has(blobSidecar.index)) {
+    //   this.metrics.blockInput.duplicateBlob.inc()
+    // }
 
-  //   this.blobsCache.set(blobSidecar.index, {blobSidecar, source, seenTimestampSec, peerIdStr});
+    this.dataCache.set(blobSidecar.index, {sidecar: blobSidecar, source, seenTimestampSec, peerIdStr});
 
-  //   if (!this.needsData()) {
-  //     this.dataStatus = BlockInputDataStatus.CompleteData;
-  //     this.dataPromise.resolve(this.getAllBlobs() as DataType);
-  //     if (this.hasBlock()) {
-  //       this.timeCompleteSec = seenTimestampSec;
-  //     }
-  //   } else if (this.dataStatus === BlockInputDataStatus.NoData) {
-  //     this.dataStatus = BlockInputDataStatus.IncompleteData;
-  //   }
-  // }
+    if (!this.needsData()) {
+      this.dataStatus = BlockInputDataStatus.CompleteData;
+      this.dataPromise.resolve(this.getBlobs());
+      if (this.hasBlock()) {
+        this.timeCompleteSec = seenTimestampSec;
+      }
+    } else if (this.dataStatus === BlockInputDataStatus.NoData) {
+      this.dataStatus = BlockInputDataStatus.IncompleteData;
+    }
+  }
 
-  // hasBlob(blobIndex: BlobIndex): boolean {
-  //   return this.dataCache.has(blobIndex);
-  // }
+  hasBlob(blobIndex: BlobIndex): boolean {
+    return this.dataCache.has(blobIndex);
+  }
 
-  // getBlobsWithSource(): DataWithSource<deneb.BlobSidecar>[] {
-  //   if (this.dataAvailability === DataAvailabilityStatus.OutOfRange) {
-  //     return [];
-  //   }
+  getBlobsWithSource(): DataWithSource<DataType>[] {
+    if (this.dataAvailability === DataAvailabilityStatus.OutOfRange) {
+      return [];
+    }
 
-  //   if (this.needsData()) {
-  //     const missingIndices = this.getMissingBlobMeta(false)?.map(({index}) => index);
-  //     throw new BlockInputError(
-  //       {
-  //         code: BlockInputErrorCode.INCOMPLETE_DATA,
-  //         ...this.getLogMeta(),
-  //       },
-  //       `Cannot get all blobs.  Missing blob indices ${missingIndices ? prettyPrintArray(missingIndices) : "[ unknown ]"}`
-  //     );
-  //   }
+    if (this.needsData()) {
+      const missingIndices = this.getMissingBlobMeta(false)?.map(({index}) => index);
+      throw new BlockInputError(
+        {
+          code: BlockInputErrorCode.INCOMPLETE_DATA,
+          ...this.getLogMeta(),
+        },
+        `Cannot get all blobs.  Missing blob indices ${missingIndices ? prettyPrintArray(missingIndices) : "[ unknown ]"}`
+      );
+    }
 
-  //   return [...this.dataCache.values()];
-  // }
+    return [...this.dataCache.values()];
+  }
 
-  // getBlobs(): deneb.BlobSidecars {
-  //   return this.getBlobsWithSource().map(({sidecar}) => sidecar);
-  // }
+  getBlobs(): DataType[] {
+    return this.getBlobsWithSource().map(({sidecar}) => sidecar);
+  }
 
-  // getMissingBlobMeta(): BlobMeta[];
-  // getMissingBlobMeta(shouldError: false): undefined | BlobMeta[];
-  // getMissingBlobMeta(shouldError = true): undefined | BlobMeta[] {
-  //   const blobMeta: BlobMeta[] = [];
-  //   // The call would have succeeded against this implementation, but implementation
-  //   // signatures of overloads on extended classes are not externally visible. Need
-  //   // to cast `as false` to build
-  //   const versionHashes = this.getVersionHashes(shouldError as false);
-  //   if (!versionHashes) return;
-  //   for (let index = 0; index < versionHashes.length; index++) {
-  //     if (!this.blobsCache.has(index)) {
-  //       blobMeta.push({
-  //         index,
-  //         blockRoot: this.blockRoot,
-  //         versionHash: versionHashes[index],
-  //       });
-  //     }
-  //   }
-  //   return blobMeta;
-  // }
+  getMissingBlobMeta(): BlobMeta[];
+  getMissingBlobMeta(shouldError: false): undefined | BlobMeta[];
+  getMissingBlobMeta(shouldError = true): undefined | BlobMeta[] {
+    const blobMeta: BlobMeta[] = [];
+    // The call would have succeeded against this implementation, but implementation
+    // signatures of overloads on extended classes are not externally visible. Need
+    // to cast `as false` to build
+    const versionHashes = this.getVersionHashes(shouldError as false);
+    if (!versionHashes) return;
+    for (let index = 0; index < versionHashes.length; index++) {
+      if (!this.dataCache.has(index)) {
+        blobMeta.push({
+          index,
+          blockRoot: this.blockRoot,
+          versionHash: versionHashes[index],
+        });
+      }
+    }
+    return blobMeta;
+  }
 
   /**
    *
@@ -546,21 +542,24 @@ export class BlockInput<
    * Async wait methods
    *
    */
-  // async waitForBlock(timeoutMs: number, abortSignal?: AbortSignal): Promise<BlockType> {
-  //   const signal = abortSignal ? abortSignal : new AbortController().signal;
-  //   return withTimeout(() => this.blockPromise.promise, timeoutMs, signal);
-  // }
+  async waitForBlock(timeoutMs: number, abortSignal?: AbortSignal): Promise<BlockType> {
+    const signal = abortSignal ? abortSignal : new AbortController().signal;
+    return withTimeout(() => this.blockPromise.promise, timeoutMs, signal);
+  }
 
-  // async waitForData(timeoutMs: number, abortSignal?: AbortSignal): Promise<DataType> {
-  //   const signal = abortSignal ? abortSignal : new AbortController().signal;
-  //   return withTimeout(() => this.dataPromise.promise, timeoutMs, signal);
-  // }
+  async waitForData(timeoutMs: number, abortSignal?: AbortSignal): Promise<DataType[]> {
+    const signal = abortSignal ? abortSignal : new AbortController().signal;
+    return withTimeout(() => this.dataPromise.promise, timeoutMs, signal);
+  }
 
-  // async waitForBlockAndData(timeoutMs: number, abortSignal?: AbortSignal): Promise<BlockInput> {
-  //   const signal = abortSignal ? abortSignal : new AbortController().signal;
-  //   await withTimeout(() => Promise.all([this.blockPromise.promise, this.dataPromise.promise]), timeoutMs, signal);
-  //   return this;
-  // }
+  async waitForBlockAndData(
+    timeoutMs: number,
+    abortSignal?: AbortSignal
+  ): Promise<BlockInput<Type, BlockType, DataType>> {
+    const signal = abortSignal ? abortSignal : new AbortController().signal;
+    await withTimeout(() => Promise.all([this.blockPromise.promise, this.dataPromise.promise]), timeoutMs, signal);
+    return this;
+  }
 
   /**
    *
@@ -594,7 +593,7 @@ export class BlockInput<
   }
 
   private checkBlockAndBlobArePaired(
-    block: SignedBeaconBlock<ForkName.deneb>,
+    block: SignedBeaconBlock<ForkPostDeneb>,
     blobSidecar: deneb.BlobSidecar
   ): void | BlockInputError {
     if (block.message.slot !== blobSidecar.signedBlockHeader.message.slot) {

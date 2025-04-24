@@ -2,7 +2,9 @@ import {Slot} from "@lodestar/types";
 import {LodestarError} from "@lodestar/utils";
 import {PeerIdStr} from "../../../util/peerId.js";
 import {
+  BlockInputLogMeta,
   BlockInputSource,
+  BlockInputType,
   LogMetaBlobs,
   //  LogMetaColumns
 } from "./types.js";
@@ -50,6 +52,11 @@ export type BlockInputErrorType =
       blockRoot: string;
     }
   | {
+      code: BlockInputErrorCode.INVALID_BLOCK_INPUT_TYPE;
+      type: BlockInputType;
+      blockRoot: string;
+    }
+  | {
       code: BlockInputErrorCode.UNDEFINED_PROP;
       blockRoot: string;
       propName: string;
@@ -83,12 +90,9 @@ export type BlockInputErrorType =
   //     blockCommitments: number;
   //     sidecarCommitments: number;
   //   }
-  | {
-      code: BlockInputErrorCode.UNKNOWN_NUMBER_OF_BLOBS;
-      blockRoot: string;
-      slot: Slot | string;
-    }
-  | (LogMetaBlobs & {code: BlockInputErrorCode.INCOMPLETE_DATA});
+  | (BlockInputLogMeta<BlockInputType> & {
+      code: BlockInputErrorCode.UNKNOWN_NUMBER_OF_BLOBS | BlockInputErrorCode.INCOMPLETE_DATA;
+    });
 // | (LogMetaColumns & {code: BlockInputErrorCode.INCOMPLETE_DATA})
 
 export class BlockInputError extends LodestarError<BlockInputErrorType> {}

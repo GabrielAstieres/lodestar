@@ -29,8 +29,6 @@ export enum BlockInputType {
   // Columns = "columns",
 }
 
-export type PossibleDataTypes = null | deneb.BlobSidecar; // | fulu.DataColumnSidecars
-
 /**
  * Represents were input originated. Blocks and Data can come from different
  * sources so each should be labelled individually.
@@ -43,11 +41,15 @@ export enum BlockInputSource {
   byRoot = "req_resp_by_root",
 }
 
-export type PromiseParts<T> = {
-  promise: Promise<T>;
-  resolve: (value: T) => void;
-  reject: (e: Error) => void;
-};
+export type BlockInputBlockType<Type extends BlockInputType> = Type extends BlockInputType.Blobs
+  ? SignedBeaconBlock<ForkPostDeneb>
+  : SignedBeaconBlock<ForkPreDeneb>;
+
+export type PossibleDataTypes = null | deneb.BlobSidecar; // | fulu.DataColumnSidecars
+
+export type BlockInputDataType<Type extends BlockInputType> = Type extends BlockInputType.Blobs
+  ? deneb.BlobSidecar
+  : null;
 
 export type LogMetaBasic = {
   slot: number | string;
@@ -58,11 +60,16 @@ export type LogMetaBlobs = LogMetaBasic & {
   expectedBlobs: string;
   receivedBlobs: number;
 };
-
 // export type LogMetaColumns = LogMetaBasic & {
 //   expectedColumns: number;
 //   receivedColumns: number;
 // };
+
+export type BlockInputLogMeta<Type extends BlockInputType> =
+  // Type extends BlockInputType.Columns
+  // ? LogMetaColumns
+  // :
+  Type extends BlockInputType.Blobs ? LogMetaBlobs : LogMetaBasic;
 
 export type SourceMeta = {
   source: BlockInputSource;
@@ -114,3 +121,9 @@ export type BlockInputBlobsProps<BlockType extends SignedBeaconBlock> =
 // export type BlockInputColumnsProps<BlockType extends SignedBeaconBlock> = {
 //   custodyConfig: CustodyConfig;
 // } & (BlockInputPreDataProps<BlockType> | (AddColumnProps & {blockRoot: Uint8Array}));
+
+export type PromiseParts<T> = {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (e: Error) => void;
+};
