@@ -86,7 +86,7 @@ export class BlockInput<
   DataType extends PossibleDataTypes = BlockInputDataType<Type>,
 > implements BlockInputBase
 {
-  type = BlockInputType.Unknown;
+  type: T;
   rootHex: string;
   blockRoot: Uint8Array;
 
@@ -108,11 +108,24 @@ export class BlockInput<
   private blockPromise = this.createPromise<BlockType>();
   private dataPromise = this.createPromise<DataType>();
 
+  private isBlobsType(): this is BlockInput<BlockInputType.Blobs> & this {
+    return this.type === BlockInputType.Blobs;
+  }
+
+  private isPreDataType(): this is BlockInput<BlockInputType.PreData> & this {
+    return this.type === BlockInputType.PreData;
+  }
+
+  private isPreUnknownType(): this is BlockInput<BlockInputType.Unknown> & this {
+    return this.type === BlockInputType.Unknown;
+  }
+
   get prettyRootHex(): string {
     return prettyBytes(this.rootHex);
   }
 
-  constructor(props: BlockInputBaseProps) {
+  constructor(props: BlockInputBaseProps & {type: BlockInputType}) {
+    this.type = props.type;
     this.checkForUndefinedProps({
       rootHex: props.rootHex,
       blockRoot: props.blockRoot,
@@ -230,16 +243,8 @@ export class BlockInput<
     return this.blockWithSource;
   }
 
-  addBlock({
-    rootHex,
-    blockRoot,
-    forkName,
-    dataAvailability,
-    block,
-    source,
-    seenTimestampSec,
-    peerIdStr,
-  }: AddBlockProps<BlockType>): void {
+  addBlock(props: AddBlockProps<BlockType>): void {
+    const {rootHex, blockRoot, forkName, dataAvailability, block, source, seenTimestampSec, peerIdStr} = props;
     this.checkForUndefinedProps({
       rootHex,
       blockRoot,
@@ -275,7 +280,9 @@ export class BlockInput<
 
     this.blockPromise.resolve(block);
 
-    if (isBlockInputBlobs(this)) {
+    if (this.isBlobsType()) {
+      const {block} = props as AddBlockProps<typeof this.type>;
+
       this.versionHashes =
         this.blockWithSource?.block.message.body.blobKzgCommitments.map(kzgCommitmentToVersionedHash);
       for (const {sidecar} of this.dataCache.values()) {
