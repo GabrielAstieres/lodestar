@@ -246,7 +246,7 @@ export class RangeSync extends (EventEmitter as {new (): RangeSyncEmitter}) {
           reportPeer: this.reportPeer,
           onEnd: this.onSyncChainEnd,
         },
-        {config: this.config, logger: this.logger, custodyConfig: this.chain.custodyConfig}
+        {config: this.config, logger: this.logger, custodyConfig: this.chain.custodyConfig, metrics: this.metrics}
       );
       this.chains.set(syncType, syncChain);
 
@@ -322,14 +322,12 @@ export class RangeSync extends (EventEmitter as {new (): RangeSyncEmitter}) {
   }
 
   private scrapeMetrics(metrics: Metrics): void {
-    metrics.syncRange.syncChainsPeers.reset();
     const syncChainsByType: Record<RangeSyncType, number> = {
       [RangeSyncType.Finalized]: 0,
       [RangeSyncType.Head]: 0,
     };
 
     for (const chain of this.chains.values()) {
-      metrics.syncRange.syncChainsPeers.observe({syncType: chain.syncType}, chain.peers);
       syncChainsByType[chain.syncType]++;
     }
 

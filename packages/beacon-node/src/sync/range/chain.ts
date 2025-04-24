@@ -3,6 +3,7 @@ import {ForkName} from "@lodestar/params";
 import {Epoch, Root, Slot, phase0} from "@lodestar/types";
 import {ErrorAborted, Logger, toRootHex} from "@lodestar/utils";
 import {BlockInput, BlockInputDataColumns, BlockInputType} from "../../chain/blocks/types.js";
+import {Metrics} from "../../metrics/metrics.js";
 import {PeerAction, prettyPrintPeerIdStr} from "../../network/index.js";
 import {PartialDownload} from "../../network/reqresp/beaconBlocksMaybeBlobsByRange.js";
 import {CustodyConfig} from "../../util/dataColumns.js";
@@ -28,6 +29,7 @@ export type SyncChainModules = {
   config: ChainForkConfig;
   custodyConfig: CustodyConfig;
   logger: Logger;
+  metrics: Metrics | null;
 };
 
 export type SyncChainFns = {
@@ -120,6 +122,7 @@ export class SyncChain {
   private readonly logger: Logger;
   private readonly config: ChainForkConfig;
   private readonly custodyConfig: CustodyConfig;
+  private readonly metrics: Metrics | null;
 
   constructor(
     initialBatchEpoch: Epoch,
@@ -138,7 +141,12 @@ export class SyncChain {
     this.config = modules.config;
     this.custodyConfig = modules.custodyConfig;
     this.logger = modules.logger;
+    this.metrics = modules.metrics;
     this.logId = `${syncType}`;
+
+    if (this.metrics != null) {
+      this.metrics.syncRange.headSyncPeers.addCollect(() => this.scrapeMetrics(this.metrics as Metrics));
+    }
 
     // Trigger event on parent class
     this.sync().then(
@@ -557,6 +565,27 @@ export class SyncChain {
     }
 
     this.lastEpochWithProcessBlocks = newLastEpochWithProcessBlocks;
+  }
+
+  private scrapeMetrics(metrics: Metrics): void {
+    const syncPeersMetric =
+      this.syncType === RangeSyncType.Finalized
+        ? metrics.syncRange.finalizedSyncPeers
+        : metrics.syncRange.headSyncPeers;
+
+    const peersByColumnIndex = new Map<number, number>();
+    for (const [columnIndex, column] of this.custodyConfig.sampledColumns.entries()) {
+      for (const {custodyColumns} of this.peersetCustody.values()) {
+        if (custodyColumns.includes(column)) {
+          peersByColumnIndex.set(columnIndex, (peersByColumnIndex.get(columnIndex) ?? 0) + 1);
+        }
+      }
+    }
+
+    for (let columnIndex = 0; columnIndex < this.custodyConfig.sampledColumns.length; columnIndex++) {
+      const peerCount = peersByColumnIndex.get(columnIndex) ?? 0;
+      syncPeersMetric.set({columnIndex}, peerCount);
+    }
   }
 }
 

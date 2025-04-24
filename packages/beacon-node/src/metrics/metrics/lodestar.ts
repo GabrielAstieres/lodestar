@@ -551,15 +551,19 @@ export function createLodestarMetrics(
         help: "Count of sync chains by syncType",
         labelNames: ["syncType"],
       }),
-      syncChainsPeers: register.histogram<{syncType: RangeSyncType}>({
-        name: "lodestar_sync_chains_peer_count_by_type",
-        help: "Count of sync chain peers by syncType",
-        labelNames: ["syncType"],
-        buckets: [0, 2, 5, 15, 50],
-      }),
       syncChainHighestTargetSlotCompleted: register.gauge({
         name: "lodestar_sync_chain_highest_target_slot_completed",
         help: "Highest target slot completed by a sync chain",
+      }),
+      headSyncPeers: register.gauge<{columnIndex: number}>({
+        name: "lodestar_sync_head_sync_peers_count",
+        help: "Count of head sync peers by group index",
+        labelNames: ["columnIndex"],
+      }),
+      finalizedSyncPeers: register.gauge<{columnIndex: number}>({
+        name: "lodestar_sync_finalized_sync_peers_count",
+        help: "Count of finalized sync peers by group index",
+        labelNames: ["columnIndex"],
       }),
     },
 
