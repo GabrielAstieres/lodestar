@@ -256,6 +256,7 @@ export class RangeSync extends (EventEmitter as {new (): RangeSyncEmitter}) {
         firstEpoch: syncChain.firstBatchEpoch,
         targetSlot: syncChain.target.slot,
         targetRoot: toRootHex(syncChain.target.root),
+        peer,
       });
     }
 
