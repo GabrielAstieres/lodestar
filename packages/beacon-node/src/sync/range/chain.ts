@@ -213,6 +213,7 @@ export class SyncChain {
    */
   removePeer(peerId: PeerIdStr): boolean {
     const deleted = this.peerset.delete(peerId);
+    this.peersetCustody.delete(peerId);
     this.computeTarget();
     return deleted;
   }
