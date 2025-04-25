@@ -322,12 +322,14 @@ export class RangeSync extends (EventEmitter as {new (): RangeSyncEmitter}) {
   }
 
   private scrapeMetrics(metrics: Metrics): void {
+    metrics.syncRange.syncChainsPeers.reset();
     const syncChainsByType: Record<RangeSyncType, number> = {
       [RangeSyncType.Finalized]: 0,
       [RangeSyncType.Head]: 0,
     };
 
     for (const chain of this.chains.values()) {
+      metrics.syncRange.syncChainsPeers.observe({syncType: chain.syncType}, chain.peers);
       syncChainsByType[chain.syncType]++;
     }
 
