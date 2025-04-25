@@ -116,6 +116,12 @@ export class ChainPeersBalancer {
 
     // pick idle peer that has the most columns we need, for pre-fulu they are always 0
     const mostColumnsPeer = eligiblePeers.sort((a, b) => b.columns - a.columns)[0];
-    return mostColumnsPeer?.peerId;
+    if (mostColumnsPeer != null) {
+      // we will use this peer for batch in SyncChain right after this call
+      this.activeRequestsByPeer.set(mostColumnsPeer.peerId, 1);
+      return mostColumnsPeer.peerId;
+    }
+
+    return undefined;
   }
 }
