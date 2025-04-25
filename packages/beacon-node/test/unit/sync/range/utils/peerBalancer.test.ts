@@ -88,13 +88,7 @@ describe("sync / range / peerBalancer", () => {
         // peer2 is busy downloading batch1
         batch1.startDownloading(peer2);
 
-        const peerBalancer = new ChainPeersBalancer(
-          peers,
-          targetByPeer,
-          columnsByPeer,
-          [batch0, batch1],
-          custodyConfig
-        );
+        const peerBalancer = new ChainPeersBalancer(targetByPeer, columnsByPeer, [batch0, batch1], custodyConfig);
         expect(peerBalancer.bestPeerToRetryBatch(batch0)).toBe(expected);
       });
     }
@@ -173,13 +167,7 @@ describe("sync / range / peerBalancer", () => {
         batch1.startDownloading(peer2);
 
         const newBatch = new Batch(3, config);
-        const peerBalancer = new ChainPeersBalancer(
-          peers,
-          targetByPeer,
-          columnsByPeer,
-          [batch0, batch1],
-          custodyConfig
-        );
+        const peerBalancer = new ChainPeersBalancer(targetByPeer, columnsByPeer, [batch0, batch1], custodyConfig);
         const idlePeer = peerBalancer.idlePeerForBatch(newBatch);
         expect(idlePeer).toBe(expected);
       });

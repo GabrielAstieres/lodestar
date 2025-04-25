@@ -33,9 +33,9 @@ export function computeHighestTarget(targets: ChainTarget[]): ChainTarget {
 
   if (highestTargets.length === 1) {
     return highestTargets[0];
-  } else {
-    return computeMostCommonTarget(highestTargets);
   }
+
+  return computeMostCommonTarget(highestTargets);
 }
 
 function computeMostCommonTarget(targets: ChainTarget[]): ChainTarget {

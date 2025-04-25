@@ -18,13 +18,12 @@ export class ChainPeersBalancer {
 
   // TODO: @matthewkeil check if this needs to be updated for custody groups
   constructor(
-    peers: PeerIdStr[],
     targetByPeer: Map<PeerIdStr, ChainTarget>,
     columnsByPeer: Map<PeerIdStr, {custodyColumns: number[]}>,
     batches: Batch[],
     custodyConfig: CustodyConfig
   ) {
-    this.peers = shuffle(peers);
+    this.peers = shuffle(Array.from(targetByPeer.keys()));
     this.targetByPeer = targetByPeer;
     this.columnsByPeer = columnsByPeer;
     this.custodyConfig = custodyConfig;

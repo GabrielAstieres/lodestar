@@ -337,7 +337,7 @@ export class SyncChain {
    */
   private triggerBatchDownloader(): void {
     try {
-      this.requestBatches(Array.from(this.peerset.keys()));
+      this.requestBatches();
     } catch (e) {
       // bubble the error up to the main async iterable loop
       this.batchProcessor.end(e as Error);
@@ -348,13 +348,12 @@ export class SyncChain {
    * Attempts to request the next required batches from the peer pool if the chain is syncing.
    * It will exhaust the peer pool and left over batches until the batch buffer is reached.
    */
-  private requestBatches(peers: PeerIdStr[]): void {
+  private requestBatches(): void {
     if (this.status !== SyncChainStatus.Syncing) {
       return;
     }
 
     const peerBalancer = new ChainPeersBalancer(
-      peers,
       this.peerset,
       this.peersetCustody,
       toArr(this.batches),

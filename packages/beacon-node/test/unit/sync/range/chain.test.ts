@@ -114,7 +114,7 @@ describe("sync / range / chain", () => {
           target,
           syncType,
           logSyncChainFns(logger, {processChainSegment, downloadBeaconBlocksByRange, reportPeer, onEnd}),
-          {config, logger, custodyConfig}
+          {config, logger, custodyConfig, metrics: null}
         );
 
         const peers = [peer];
@@ -168,7 +168,7 @@ describe("sync / range / chain", () => {
         target,
         syncType,
         logSyncChainFns(logger, {processChainSegment, downloadBeaconBlocksByRange, reportPeer, onEnd}),
-        {config, logger, custodyConfig}
+        {config, logger, custodyConfig, metrics: null}
       );
 
       // Add peers after some time
