@@ -60,6 +60,7 @@ import {SeenGossipBlockInput} from "./seenCache/index.js";
 import {SeenAggregatedAttestations} from "./seenCache/seenAggregateAndProof.js";
 import {SeenAttestationDatas} from "./seenCache/seenAttestationData.js";
 import {SeenBlockAttesters} from "./seenCache/seenBlockAttesters.js";
+import {SeenBlockInputCache} from "./seenCache/seenBlockInput.js";
 import {ShufflingCache} from "./shufflingCache.js";
 
 export {BlockType, type AssembledBlockType};
@@ -121,6 +122,7 @@ export interface IBeaconChain {
   readonly seenSyncCommitteeMessages: SeenSyncCommitteeMessages;
   readonly seenContributionAndProof: SeenContributionAndProof;
   readonly seenAttestationDatas: SeenAttestationDatas;
+  readonly seenBlockInputCache: SeenBlockInputCache;
   readonly seenGossipBlockInput: SeenGossipBlockInput;
   // Seen cache for liveness checks
   readonly seenBlockAttesters: SeenBlockAttesters;
