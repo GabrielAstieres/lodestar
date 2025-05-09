@@ -832,18 +832,12 @@ export class BeaconChain implements IBeaconChain {
     }
   }
 
-  predictProposerHead(slot: Slot): ProtoBlock {
-    this.metrics?.forkChoice.requests.inc();
-    const timer = this.metrics?.forkChoice.findHead.startTimer({caller: FindHeadFnName.predictProposerHead});
-
-    try {
-      return this.forkChoice.updateAndGetHead({mode: UpdateHeadOpt.GetPredictedProposerHead, slot}).head;
-    } catch (e) {
-      this.metrics?.forkChoice.errors.inc({entrypoint: UpdateHeadOpt.GetPredictedProposerHead});
-      throw e;
-    } finally {
-      timer?.();
+  shouldOverrideForkchoiceUpdate(block: ProtoBlock): boolean {
+    const maybeOverride = this.forkChoice.shouldOverrideForkchoiceUpdate(block);
+    if (maybeOverride) {
+      this.metrics?.weakHeadDetected.inc();
     }
+    return maybeOverride;
   }
 
   getProposerHead(slot: Slot): ProtoBlock {

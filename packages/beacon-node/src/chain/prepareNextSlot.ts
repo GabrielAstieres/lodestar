@@ -4,7 +4,6 @@ import {ForkPostBellatrix, ForkSeq, SLOTS_PER_EPOCH, isForkPostElectra} from "@l
 import {
   BeaconStateElectra,
   CachedBeaconStateAllForks,
-  CachedBeaconStateExecutions,
   StateHashTreeRootSource,
   computeEpochAtSlot,
   computeTimeAtSlot,
@@ -127,31 +126,8 @@ export class PrepareNextSlotScheduler {
       if (isExecutionStateType(prepareState)) {
         const proposerIndex = prepareState.epochCtx.getBeaconProposer(prepareSlot);
         const feeRecipient = this.chain.beaconProposerCache.get(proposerIndex);
-        let updatedPrepareState = prepareState;
-        let updatedHeadRoot = headRoot;
 
         if (feeRecipient) {
-          // If we are proposing next slot, we need to predict if we can proposer-boost-reorg or not
-          const {slot: proposerHeadSlot, blockRoot: proposerHeadRoot} = this.chain.predictProposerHead(clockSlot);
-
-          // If we predict we can reorg, update prepareState with proposer head block
-          if (proposerHeadRoot !== headRoot || proposerHeadSlot !== headSlot) {
-            this.logger.verbose("Weak head detected. May build on this block instead:", {
-              proposerHeadSlot,
-              proposerHeadRoot,
-              headSlot,
-              headRoot,
-            });
-            this.metrics?.weakHeadDetected.inc();
-            updatedPrepareState = (await this.chain.regen.getBlockSlotState(
-              proposerHeadRoot,
-              prepareSlot,
-              {dontTransferCache: !isEpochTransition},
-              RegenCaller.predictProposerHead
-            )) as CachedBeaconStateExecutions;
-            updatedHeadRoot = proposerHeadRoot;
-          }
-
           // Update the builder status, if enabled shoot an api call to check status
           this.chain.updateBuilderStatus(clockSlot);
           if (this.chain.executionBuilder?.status) {
@@ -174,10 +150,10 @@ export class PrepareNextSlotScheduler {
             this.chain,
             this.logger,
             fork as ForkPostBellatrix, // State is of execution type
-            fromHex(updatedHeadRoot),
+            fromHex(headRoot),
             safeBlockHash,
             finalizedBlockHash,
-            updatedPrepareState,
+            prepareState,
             feeRecipient
           );
           this.logger.verbose("PrepareNextSlotScheduler prepared new payload", {
@@ -187,12 +163,10 @@ export class PrepareNextSlotScheduler {
           });
         }
 
-        this.computeStateHashTreeRoot(updatedPrepareState, isEpochTransition);
-
         // If emitPayloadAttributes is true emit a SSE payloadAttributes event
         if (this.chain.opts.emitPayloadAttributes === true) {
           const data = await getPayloadAttributesForSSE(fork as ForkPostBellatrix, this.chain, {
-            prepareState: updatedPrepareState,
+            prepareState: prepareState,
             prepareSlot,
             parentBlockRoot: fromHex(headRoot),
             // The likely consumers of this API are builders and will anyway ignore the
@@ -201,9 +175,8 @@ export class PrepareNextSlotScheduler {
           });
           this.chain.emitter.emit(routes.events.EventType.payloadAttributes, {data, version: fork});
         }
-      } else {
-        this.computeStateHashTreeRoot(prepareState, isEpochTransition);
       }
+      this.computeStateHashTreeRoot(prepareState, isEpochTransition);
 
       // assuming there is no reorg, it caches the checkpoint state & helps avoid doing a full state transition in the next slot
       //  + when gossip block comes, we need to validate and run state transition

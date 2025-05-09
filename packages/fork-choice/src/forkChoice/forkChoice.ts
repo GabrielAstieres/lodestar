@@ -64,13 +64,11 @@ export type ForkChoiceOpts = {
 export enum UpdateHeadOpt {
   GetCanonicialHead = "getCanonicialHead", // Skip getProposerHead
   GetProposerHead = "getProposerHead", // With getProposerHead
-  GetPredictedProposerHead = "getPredictedProposerHead", // With predictProposerHead
 }
 
 export type UpdateAndGetHeadOpt =
   | {mode: UpdateHeadOpt.GetCanonicialHead}
-  | {mode: UpdateHeadOpt.GetProposerHead; secFromSlot: number; slot: Slot}
-  | {mode: UpdateHeadOpt.GetPredictedProposerHead; slot: Slot};
+  | {mode: UpdateHeadOpt.GetProposerHead; secFromSlot: number; slot: Slot};
 
 /**
  * Provides an implementation of "Ethereum Consensus -- Beacon Chain Fork Choice":
@@ -191,7 +189,6 @@ export class ForkChoice implements IForkChoice {
    *
    * A multiplexer to wrap around the traditional `updateHead()` according to the scenario
    * Scenarios as follow:
-   *    Prepare to propose in the next slot: getHead() -> predictProposerHead()
    *    Proposing in the current slot: updateHead() -> getProposerHead()
    *    Others eg. initializing forkchoice, importBlock: updateHead()
    *
@@ -203,24 +200,18 @@ export class ForkChoice implements IForkChoice {
     notReorgedReason?: NotReorgedReason;
   } {
     const {mode} = opt;
+    const canonicialHeadBlock = this.updateHead();
 
-    const canonicialHeadBlock = mode === UpdateHeadOpt.GetPredictedProposerHead ? this.getHead() : this.updateHead();
-    switch (mode) {
-      case UpdateHeadOpt.GetPredictedProposerHead:
-        return {head: this.predictProposerHead(canonicialHeadBlock, opt.slot)};
-      case UpdateHeadOpt.GetProposerHead: {
-        const {
-          proposerHead: head,
-          isHeadTimely,
-          notReorgedReason,
-        } = this.getProposerHead(canonicialHeadBlock, opt.secFromSlot, opt.slot);
-        return {head, isHeadTimely, notReorgedReason};
-      }
-      case UpdateHeadOpt.GetCanonicialHead:
-        return {head: canonicialHeadBlock};
-      default:
-        return {head: canonicialHeadBlock};
+    if (mode === UpdateHeadOpt.GetProposerHead) {
+      const {
+        proposerHead: head,
+        isHeadTimely,
+        notReorgedReason,
+      } = this.getProposerHead(canonicialHeadBlock, opt.secFromSlot, opt.slot);
+      return {head, isHeadTimely, notReorgedReason};
     }
+
+    return {head: canonicialHeadBlock};
   }
 
   /**
@@ -231,21 +222,23 @@ export class ForkChoice implements IForkChoice {
   }
 
   /**
-   * To predict the proposer head of the next slot. That is, to predict if proposer-boost-reorg could happen.
+   * To determine if the fcU call should be overridden. This is in the context of proposer-boost-reorg
+   * where we may reorg out the head block by issuing a fcU call with paraent as head (aka override)
+   *
+   * If this returns false, we are certain no reorg will happen thus no fcU override. If this return true, it is a maybe
+   *
    * Reason why we can't be certain is because information of the head block is not fully available yet
    * since the current slot hasn't ended especially the attesters' votes.
    *
    * There is a chance we mispredict.
    *
-   * By calling this function, we assume we are the proposer of next slot
-   *
    * https://github.com/ethereum/consensus-specs/blob/v1.4.0-beta.4/specs/bellatrix/fork-choice.md#should_override_forkchoice_update
    */
-  predictProposerHead(headBlock: ProtoBlock, currentSlot?: Slot): ProtoBlock {
+  shouldOverrideForkchoiceUpdate(headBlock: ProtoBlock, currentSlot?: Slot): boolean {
     // Skip re-org attempt if proposer boost (reorg) are disabled
     if (!this.opts?.proposerBoost || !this.opts?.proposerBoostReorg) {
       this.logger?.verbose("No proposer boot reorg prediction since the related flags are disabled");
-      return headBlock;
+      return false;
     }
 
     const parentBlock = this.protoArray.getBlock(headBlock.parentRoot);
@@ -254,22 +247,22 @@ export class ForkChoice implements IForkChoice {
 
     // No reorg if parentBlock isn't available
     if (parentBlock === undefined) {
-      return headBlock;
+      return false;
     }
 
     const {prelimProposerHead} = this.getPreliminaryProposerHead(headBlock, parentBlock, proposalSlot);
 
     if (prelimProposerHead === headBlock) {
-      return headBlock;
+      return false;
     }
 
     const currentTimeOk = headBlock.slot === currentSlot;
     if (!currentTimeOk) {
-      return headBlock;
+      return false;
     }
 
     this.logger?.info("Current head is weak. Predicting next block to be built on parent of head");
-    return parentBlock;
+    return true;
   }
 
   /**

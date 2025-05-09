@@ -107,6 +107,7 @@ export interface IForkChoice {
     isHeadTimely?: boolean;
     notReorgedReason?: NotReorgedReason;
   };
+  shouldOverrideForkchoiceUpdate(headBlock: ProtoBlock, currentSlot?: Slot): boolean;
   /**
    * Retrieves all possible chain heads (leaves of fork choice tree).
    */
