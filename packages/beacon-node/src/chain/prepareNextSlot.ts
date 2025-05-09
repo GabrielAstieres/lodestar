@@ -166,7 +166,7 @@ export class PrepareNextSlotScheduler {
         // If emitPayloadAttributes is true emit a SSE payloadAttributes event
         if (this.chain.opts.emitPayloadAttributes === true) {
           const data = await getPayloadAttributesForSSE(fork as ForkPostBellatrix, this.chain, {
-            prepareState: prepareState,
+            prepareState,
             prepareSlot,
             parentBlockRoot: fromHex(headRoot),
             // The likely consumers of this API are builders and will anyway ignore the
